@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Studio Teleprompter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Libre+Franklin:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+  :root{
+    --bg:#15130e;
+    --bg-2:#1f1b13;
+    --surface:#2a251a;
+    --surface-2:#332d20;
+    --text:#f5efe1;
+    --text-dim:#a59c87;
+    --text-faint:#6f6856;
+    --accent:#e8a33c;
+    --accent-soft:#3a2f17;
+    --live:#e1503a;
+    --line:rgba(232,163,60,.55);
+    --border:rgba(245,239,225,.10);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Libre Franklin',sans-serif;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+
+  /* ---------- SETUP SCREEN ---------- */
+  #setup{
+    position:fixed;inset:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:32px;overflow-y:auto;
+    background:
+      radial-gradient(900px 500px at 80% -10%,rgba(232,163,60,.10),transparent 60%),
+      radial-gradient(700px 600px at 0% 110%,rgba(225,80,58,.08),transparent 55%),
+      var(--bg);
+  }
+  .setup-inner{width:100%;max-width:560px}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .brand-dot{
+    width:13px;height:13px;border-radius:50%;background:var(--live);
+    box-shadow:0 0 0 5px rgba(225,80,58,.18);
+  }
+  .brand-tag{
+    font-size:11px;letter-spacing:.28em;text-transform:uppercase;
+    color:var(--text-dim);font-weight:600;
+  }
+  h1{
+    font-family:'Newsreader',serif;font-weight:500;
+    font-size:clamp(2.4rem,6vw,3.6rem);line-height:1.04;
+    letter-spacing:-.01em;margin:14px 0 10px;
+  }
+  h1 em{font-style:italic;color:var(--accent)}
+  .lede{color:var(--text-dim);font-size:15px;line-height:1.6;margin-bottom:30px;max-width:440px}
+
+  .field-label{
+    font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--text-faint);font-weight:600;margin-bottom:9px;display:block;
+  }
+
+  .drop{
+    border:1.5px dashed rgba(245,239,225,.22);
+    border-radius:var(--radius);
+    padding:34px 24px;text-align:center;
+    transition:.2s;background:rgba(245,239,225,.015);
+  }
+  .drop.over{border-color:var(--accent);background:var(--accent-soft)}
+  .drop-icon{
+    width:46px;height:46px;margin:0 auto 14px;border-radius:12px;
+    background:var(--surface);display:flex;align-items:center;justify-content:center;
+    color:var(--accent);
+  }
+  .drop strong{font-size:15px;font-weight:600}
+  .drop strong span{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+  .drop small{display:block;color:var(--text-faint);font-size:12px;margin-top:6px}
+
+  .divider{
+    display:flex;align-items:center;gap:14px;
+    color:var(--text-faint);font-size:11px;letter-spacing:.18em;
+    text-transform:uppercase;margin:20px 0;
+  }
+  .divider::before,.divider::after{
+    content:"";flex:1;height:1px;background:var(--border);
+  }
+
+  textarea,input[type=text]{
+    width:100%;background:var(--bg-2);color:var(--text);
+    border:1px solid var(--border);border-radius:11px;
+    font-family:inherit;font-size:14px;padding:13px 15px;transition:.18s;
+  }
+  textarea{min-height:120px;resize:vertical;line-height:1.6}
+  textarea:focus,input[type=text]:focus{outline:none;border-color:var(--accent)}
+  textarea::placeholder,input::placeholder{color:var(--text-faint)}
+
+  .heading-row{margin-top:22px}
+
+  .start-btn{
+    margin-top:26px;width:100%;
+    background:var(--accent);color:#1a1408;
+    font-weight:700;font-size:15px;letter-spacing:.01em;
+    padding:15px;border-radius:11px;transition:.18s;
+    display:flex;align-items:center;justify-content:center;gap:9px;
+  }
+  .start-btn:hover{filter:brightness(1.07);transform:translateY(-1px)}
+  .start-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;filter:none}
+
+  .filename{
+    margin-top:13px;font-size:13px;color:var(--accent);
+    display:none;align-items:center;gap:7px;
+  }
+  .filename.show{display:flex}
+
+  /* ---------- PROMPTER SCREEN ---------- */
+  #prompter{position:fixed;inset:0;display:none}
+  #prompter.active{display:block}
+
+  .stage{position:absolute;inset:0;overflow:hidden}
+
+  #scroller{
+    position:absolute;inset:0;overflow-y:scroll;
+    scrollbar-width:none;cursor:pointer;outline:none;
+  }
+  #scroller::-webkit-scrollbar{display:none}
+
+  #script{
+    padding:35vh 8vw 80vh;
+    max-width:1100px;margin:0 auto;
+  }
+  #script.mirror{transform:scaleX(-1)}
+  #script.flip{transform:scaleY(-1)}
+  #script.mirror.flip{transform:scale(-1,-1)}
+
+  #script p{
+    font-size:var(--pt-size,52px);
+    line-height:1.55;font-weight:500;
+    letter-spacing:-.005em;
+    margin-bottom:.7em;
+    text-wrap:pretty;
+  }
+  #script p:last-child{margin-bottom:0}
+  .script-end{
+    text-align:center;color:var(--text-faint);
+    font-family:'Newsreader',serif;font-style:italic;
+    font-size:calc(var(--pt-size,52px)*.5);margin-top:1.4em;
+  }
+
+  /* fade masks */
+  .fade{position:absolute;left:0;right:0;height:22vh;pointer-events:none;z-index:4}
+  .fade.top{top:0;background:linear-gradient(var(--bg),transparent)}
+  .fade.bot{bottom:0;background:linear-gradient(transparent,var(--bg))}
+
+  /* reading guide */
+  .guide{
+    position:absolute;left:0;right:0;top:35vh;height:0;z-index:5;
+    pointer-events:none;
+  }
+  .guide::before,.guide::after{
+    content:"";position:absolute;top:-9px;
+    border:9px solid transparent;
+  }
+  .guide::before{left:0;border-left-color:var(--accent);border-right:0}
+  .guide::after{right:0;border-right-color:var(--accent);border-left:0}
+  .guide-line{
+    position:absolute;left:38px;right:38px;top:0;height:2px;
+    background:linear-gradient(90deg,transparent,var(--line) 12%,var(--line) 88%,transparent);
+  }
+
+  /* minimap — full-script overview on the left (VS Code style) */
+  .minimap{
+    position:absolute;left:0;top:0;bottom:0;width:158px;z-index:7;
+    background:linear-gradient(90deg,rgba(31,27,19,.98),rgba(31,27,19,.84));
+    border-right:1px solid var(--border);
+    padding:16px 0 14px;overflow:hidden;
+    transition:transform .28s ease,opacity .28s ease;
+  }
+  .minimap.hidden{transform:translateX(-100%);opacity:0;pointer-events:none}
+  .mm-header{
+    font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--text-faint);font-weight:700;padding:0 16px 11px;
+  }
+  .mm-canvas{
+    position:relative;width:100%;height:calc(100% - 22px);cursor:pointer;
+  }
+  .mm-content{
+    position:absolute;top:0;left:0;right:0;
+    transform-origin:top center;padding:0 16px;pointer-events:none;
+  }
+  .mm-content p{
+    font-size:6.5px;line-height:1.7;color:var(--text-dim);
+    margin-bottom:7px;font-weight:500;
+  }
+  .mm-content .script-end{
+    font-size:6px;color:var(--text-faint);text-align:center;
+    font-style:italic;margin-top:10px;
+  }
+  /* the box that marks what's on screen in the main view */
+  .mm-viewport{
+    position:absolute;left:5px;right:5px;
+    background:rgba(232,163,60,.15);
+    border:1.5px solid rgba(232,163,60,.7);
+    border-radius:5px;
+    box-shadow:0 0 0 100vh rgba(21,19,14,.45);
+    pointer-events:none;
+  }
+
+  /* shift the script so it never sits under the minimap */
+  .stage.has-minimap #scroller{padding-left:158px}
+  .stage.has-minimap .guide-line{left:176px}
+
+  /* camera — centered along the top */
+  .cam-panel{
+    position:absolute;top:22px;left:50%;transform:translateX(-50%);
+    width:300px;z-index:8;
+  }
+  .cam-panel.hidden{display:none}
+  .cam-frame{
+    position:relative;width:100%;aspect-ratio:16/10;
+    background:#000;border-radius:var(--radius);overflow:hidden;
+    border:1px solid var(--border);
+    box-shadow:0 18px 40px rgba(0,0,0,.55);
+  }
+  .cam-frame video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  .live-badge{
+    position:absolute;top:10px;left:10px;
+    display:flex;align-items:center;gap:6px;
+    background:rgba(0,0,0,.55);padding:5px 9px;border-radius:20px;
+    font-size:10px;font-weight:700;letter-spacing:.12em;
+  }
+  .live-badge .dot{
+    width:7px;height:7px;border-radius:50%;background:var(--live);
+    animation:pulse 1.6s infinite;
+  }
+  @keyframes pulse{50%{opacity:.25}}
+
+  /* title — top right corner */
+  .heading-panel{
+    position:absolute;top:22px;right:22px;z-index:8;
+    width:260px;background:var(--surface);
+    border:1px solid var(--border);border-radius:var(--radius);
+    padding:13px 15px;
+  }
+  .heading-kicker{
+    font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin-bottom:5px;
+  }
+  .heading-text{
+    font-family:'Newsreader',serif;font-size:19px;line-height:1.28;
+    font-weight:500;outline:none;
+  }
+  .heading-text:focus{color:var(--accent)}
+
+  /* countdown */
+  .countdown{
+    position:absolute;inset:0;z-index:30;display:none;
+    align-items:center;justify-content:center;
+    background:rgba(21,19,14,.82);backdrop-filter:blur(3px);
+  }
+  .countdown.show{display:flex}
+  .countdown span{
+    font-family:'Newsreader',serif;font-size:23vh;font-weight:500;
+    color:var(--accent);line-height:1;
+    animation:cd .9s ease-out;
+  }
+  @keyframes cd{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}
+
+  /* ---------- CONTROL BAR ---------- */
+  .controls{
+    position:absolute;left:50%;bottom:22px;transform:translateX(-50%);
+    z-index:20;display:flex;align-items:center;gap:6px;
+    background:rgba(31,27,19,.92);backdrop-filter:blur(14px);
+    border:1px solid var(--border);
+    border-radius:16px;padding:9px;
+    box-shadow:0 16px 44px rgba(0,0,0,.5);
+    transition:opacity .35s,transform .35s;
+  }
+  .controls.hidden{opacity:0;transform:translateX(-50%) translateY(20px);pointer-events:none}
+
+  .ctrl{
+    width:42px;height:42px;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--text);transition:.14s;background:transparent;
+  }
+  .ctrl:hover{background:var(--surface-2)}
+  .ctrl.active{background:var(--accent-soft);color:var(--accent)}
+  .ctrl svg{width:19px;height:19px}
+
+  .play-btn{
+    width:54px;height:54px;border-radius:13px;
+    background:var(--accent);color:#1a1408;
+  }
+  .play-btn:hover{background:var(--accent);filter:brightness(1.08)}
+  .play-btn svg{width:23px;height:23px}
+
+  .sep{width:1px;height:30px;background:var(--border);margin:0 4px}
+
+  .stepper{
+    display:flex;align-items:center;background:var(--bg-2);
+    border-radius:10px;padding:3px;gap:2px;
+  }
+  .stepper button{
+    width:30px;height:34px;border-radius:8px;color:var(--text-dim);
+    font-size:18px;font-weight:600;transition:.14s;
+  }
+  .stepper button:hover{background:var(--surface-2);color:var(--text)}
+  .stepper .readout{
+    min-width:62px;text-align:center;font-size:11px;
+    color:var(--text);font-weight:600;
+  }
+  .stepper .readout small{
+    display:block;font-size:8.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--text-faint);font-weight:600;
+  }
+
+  /* hint */
+  .hint{
+    position:absolute;left:50%;bottom:88px;transform:translateX(-50%);
+    z-index:18;font-size:11px;color:var(--text-faint);
+    display:flex;gap:16px;transition:opacity .35s;
+    background:rgba(21,19,14,.6);padding:6px 14px;border-radius:20px;
+  }
+  .hint.hidden{opacity:0}
+  .hint kbd{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:5px;padding:1px 6px;font-family:inherit;
+    font-size:10px;color:var(--text-dim);
+  }
+
+  .toast{
+    position:absolute;top:22px;left:50%;transform:translateX(-50%) translateY(-20px);
+    z-index:25;background:var(--surface);border:1px solid var(--border);
+    color:var(--text);padding:10px 18px;border-radius:10px;font-size:13px;
+    opacity:0;transition:.3s;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media(max-width:640px){
+    .cam-panel{width:188px;top:14px}
+    .heading-panel{width:130px;top:14px;right:14px;padding:9px 11px}
+    .heading-text{font-size:14px}
+    #script{padding:35vh 6vw 80vh}
+    .controls{flex-wrap:wrap;justify-content:center;max-width:94vw}
+    .minimap{display:none}
+    .stage.has-minimap #scroller{padding-left:0}
+    .stage.has-minimap .guide-line{left:38px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ SETUP ============ -->
+<div id="setup">
+  <div class="setup-inner">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span class="brand-tag">Studio Teleprompter</span>
+    </div>
+    <h1>Read it. <em>Don't lose it.</em></h1>
+    <p class="lede">Load your script, see yourself in the corner, and let the words scroll
+       at your pace — eyes up, no more hunting for your place.</p>
+
+    <span class="field-label">1 — Your script</span>
+    <div class="drop" id="drop">
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+          <path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/>
+        </svg>
+      </div>
+      <strong>Drop a file here or <span>browse</span></strong>
+      <small>Word documents (.docx), plain text (.txt) and Markdown (.md)</small>
+    </div>
+    <div class="filename" id="filename">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="15" height="15">
+        <path d="M20 6 9 17l-5-5"/></svg>
+      <span id="filename-text"></span>
+    </div>
+    <input type="file" id="fileInput" accept=".txt,.md,.docx,.text" hidden>
+
+    <div class="divider">or paste it</div>
+    <textarea id="pasteArea" placeholder="Paste your script straight in here…"></textarea>
+
+    <div class="heading-row">
+      <span class="field-label">2 — Heading shown next to your camera</span>
+      <input type="text" id="headingInput" placeholder="e.g. Intro — Episode 12">
+    </div>
+
+    <button class="start-btn" id="startBtn" disabled>
+      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8 5v14l11-7z"/></svg>
+      Start prompter
+    </button>
+  </div>
+</div>
+
+<!-- ============ PROMPTER ============ -->
+<div id="prompter">
+  <div class="stage">
+    <div id="scroller" tabindex="0">
+      <div id="script"></div>
+    </div>
+
+    <div class="fade top"></div>
+    <div class="fade bot"></div>
+    <div class="guide"><div class="guide-line"></div></div>
+
+    <div class="minimap" id="minimap">
+      <div class="mm-header">Full script</div>
+      <div class="mm-canvas" id="mmCanvas">
+        <div class="mm-content" id="mmContent"></div>
+        <div class="mm-viewport" id="mmViewport"></div>
+      </div>
+    </div>
+
+    <div class="cam-panel" id="camPanel">
+      <div class="cam-frame">
+        <video id="cam" autoplay muted playsinline></video>
+        <div class="live-badge"><span class="dot"></span>LIVE</div>
+      </div>
+    </div>
+
+    <div class="heading-panel">
+      <div class="heading-kicker">Now reading</div>
+      <div class="heading-text" id="headingText" contenteditable="true" spellcheck="false"></div>
+    </div>
+
+    <div class="countdown" id="countdown"><span id="cdNum">3</span></div>
+    <div class="toast" id="toast"></div>
+
+    <div class="hint" id="hint">
+      <span><kbd>Space</kbd> play / pause</span>
+      <span><kbd>↑</kbd><kbd>↓</kbd> speed</span>
+      <span><kbd>R</kbd> restart</span>
+      <span>click text to jump there</span>
+    </div>
+
+    <div class="controls" id="controls">
+      <button class="ctrl play-btn" id="playBtn" title="Play / Pause (Space)">
+        <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <button class="ctrl" id="restartBtn" title="Restart (R)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+      </button>
+
+      <div class="sep"></div>
+
+      <div class="stepper">
+        <button id="speedDown" title="Slower">−</button>
+        <div class="readout"><span id="speedVal">70</span><small>Speed</small></div>
+        <button id="speedUp" title="Faster">+</button>
+      </div>
+
+      <div class="stepper">
+        <button id="sizeDown" title="Smaller text">−</button>
+        <div class="readout"><span id="sizeVal">52</span><small>Text</small></div>
+        <button id="sizeUp" title="Bigger text">+</button>
+      </div>
+
+      <div class="sep"></div>
+
+      <button class="ctrl active" id="minimapBtn" title="Toggle full-script overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/>
+          <path d="M12 7h5M12 11h5M12 15h3"/></svg>
+      </button>
+      <button class="ctrl" id="mirrorBtn" title="Mirror text (for glass rigs)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 3v18"/><path d="M16 7l4 5-4 5"/><path d="M8 7l-4 5 4 5"/></svg>
+      </button>
+      <button class="ctrl" id="camBtn" title="Toggle camera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      </button>
+      <button class="ctrl" id="fsBtn" title="Fullscreen (F)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+      </button>
+
+      <div class="sep"></div>
+
+      <button class="ctrl" id="newBtn" title="Load a different script">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/>
+          <path d="M9 14h6M12 11v6"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- element refs ---------- */
+  const $ = id => document.getElementById(id);
+  const setup=$('setup'), prompter=$('prompter');
+  const drop=$('drop'), fileInput=$('fileInput');
+  const filename=$('filename'), filenameText=$('filename-text');
+  const pasteArea=$('pasteArea'), headingInput=$('headingInput'), startBtn=$('startBtn');
+  const scroller=$('scroller'), script=$('script');
+  const cam=$('cam'), camPanel=$('camPanel');
+  const headingText=$('headingText');
+  const controls=$('controls'), hint=$('hint'), toast=$('toast');
+  const playBtn=$('playBtn'), playIcon=$('playIcon'), restartBtn=$('restartBtn');
+  const speedVal=$('speedVal'), sizeVal=$('sizeVal');
+  const countdown=$('countdown'), cdNum=$('cdNum');
+  const stage=document.querySelector('.stage');
+  const minimap=$('minimap'), mmCanvas=$('mmCanvas');
+  const mmContent=$('mmContent'), mmViewport=$('mmViewport');
+
+  /* ---------- state ---------- */
+  let scriptText='';        // raw text of the script
+  let speed=70;             // pixels per second
+  let fontSize=52;          // px
+  let playing=false;
+  let mmRenderedH=0;        // visible height of the scaled minimap content
+  let camStream=null;
+  let scrollAcc=0, lastTime=0, rafId=null;
+
+  /* ================= SETUP SCREEN ================= */
+
+  function refreshStart(){
+    startBtn.disabled = !(scriptText.trim() || pasteArea.value.trim());
+  }
+
+  function cleanMarkdown(t){
+    return t
+      .replace(/^#{1,6}\s+/gm,'')          // headings
+      .replace(/(\*\*|__)(.*?)\1/g,'$2')   // bold
+      .replace(/(\*|_)(.*?)\1/g,'$2')      // italic
+      .replace(/`{1,3}([^`]+)`{1,3}/g,'$1')// code
+      .replace(/^\s*[-*+]\s+/gm,'• ');     // bullets
+  }
+
+  function handleFile(file){
+    if(!file) return;
+    const name=file.name.toLowerCase();
+    const finish=text=>{
+      scriptText = name.endsWith('.md') ? cleanMarkdown(text) : text;
+      filenameText.textContent=file.name;
+      filename.classList.add('show');
+      if(!headingInput.value.trim()){
+        headingInput.value = file.name.replace(/\.[^.]+$/,'');
+      }
+      refreshStart();
+    };
+
+    if(name.endsWith('.docx')){
+      if(typeof mammoth==='undefined'){
+        alert('Could not load the Word-document reader (no internet on first open?).\nTip: save your script as a .txt file, or paste the text directly.');
+        return;
+      }
+      file.arrayBuffer()
+        .then(buf=>mammoth.extractRawText({arrayBuffer:buf}))
+        .then(res=>finish(res.value))
+        .catch(()=>alert('Sorry, that Word file could not be read. Try saving it as .txt or paste the text instead.'));
+    }else{
+      file.text().then(finish).catch(()=>alert('Could not read that file.'));
+    }
+  }
+
+  drop.addEventListener('click',()=>fileInput.click());
+  fileInput.addEventListener('change',e=>handleFile(e.target.files[0]));
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{
+    e.preventDefault();drop.classList.add('over');
+  }));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{
+    e.preventDefault();drop.classList.remove('over');
+  }));
+  drop.addEventListener('drop',e=>handleFile(e.dataTransfer.files[0]));
+  pasteArea.addEventListener('input',()=>{
+    if(pasteArea.value.trim()){ scriptText=''; filename.classList.remove('show'); }
+    refreshStart();
+  });
+  startBtn.addEventListener('click',startPrompter);
+
+  /* ================= BUILD THE SCRIPT ================= */
+
+  function renderScript(text){
+    script.innerHTML='';
+    const blocks=text.replace(/\r/g,'').split(/\n{2,}/);
+    blocks.forEach(block=>{
+      const trimmed=block.trim();
+      if(!trimmed) return;
+      const p=document.createElement('p');
+      p.innerHTML=trimmed.replace(/\n/g,'<br>')
+                         .replace(/&/g,'&amp;').replace(/</g,'&lt;');
+      // un-escape the <br> we added
+      p.innerHTML=p.textContent ? p.innerHTML : p.innerHTML;
+      script.appendChild(p);
+    });
+    if(!script.children.length){
+      const p=document.createElement('p');
+      p.textContent=text;
+      script.appendChild(p);
+    }
+    const end=document.createElement('div');
+    end.className='script-end';
+    end.textContent='— end of script —';
+    script.appendChild(end);
+
+    // mirror the whole script into the minimap (tiny overview)
+    mmContent.innerHTML = script.innerHTML;
+  }
+
+  /* ================= MINIMAP ================= */
+
+  // scale the minimap content so the WHOLE script fits in the panel
+  function layoutMinimap(){
+    if(minimap.classList.contains('hidden')) return;
+    mmContent.style.transform='scale(1)';
+    const naturalH = mmContent.offsetHeight;
+    const availH   = mmCanvas.clientHeight;
+    const scale    = naturalH>availH ? availH/naturalH : 1;
+    mmRenderedH    = naturalH*scale;
+    mmContent.style.transform='scale('+scale+')';
+  }
+
+  // move the highlight box to match what's on screen in the main view
+  function updateMinimap(){
+    if(!mmRenderedH || minimap.classList.contains('hidden')) return;
+    const sh=scroller.scrollHeight, ch=scroller.clientHeight;
+    const max=sh-ch;
+    const progress = max>0 ? scroller.scrollTop/max : 0;
+    let boxH = (ch/sh)*mmRenderedH;
+    boxH = Math.max(18, Math.min(boxH, mmRenderedH));
+    mmViewport.style.height = boxH+'px';
+    mmViewport.style.top    = (progress*(mmRenderedH-boxH))+'px';
+  }
+
+  // click anywhere on the minimap to jump there
+  mmCanvas.addEventListener('click',e=>{
+    if(!mmRenderedH) return;
+    const rect=mmCanvas.getBoundingClientRect();
+    let frac=(e.clientY-rect.top)/mmRenderedH;
+    frac=Math.max(0,Math.min(1,frac));
+    const max=scroller.scrollHeight-scroller.clientHeight;
+    scroller.scrollTop=frac*max;
+    updateMinimap();
+  });
+
+  /* ================= START / CAMERA ================= */
+
+  function startPrompter(){
+    const text = (scriptText.trim() || pasteArea.value).trim();
+    if(!text) return;
+    renderScript(text);
+
+    const h = headingInput.value.trim() || 'Untitled script';
+    headingText.textContent = h;
+
+    setup.style.display='none';
+    prompter.classList.add('active');
+    stage.classList.add('has-minimap');
+    scroller.scrollTop=0;
+    applySize(); applySpeed();
+    startCamera();
+    showHintTemporarily();
+    // build the minimap once the prompter is actually on screen
+    requestAnimationFrame(()=>{ layoutMinimap(); updateMinimap(); });
+    // grab keyboard focus so arrow keys / space work right away
+    setTimeout(()=>scroller.focus(),50);
+  }
+
+  function startCamera(){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      camPanel.classList.add('hidden');
+      flash('No camera available on this device');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({video:{width:640,height:480},audio:false})
+      .then(stream=>{
+        camStream=stream;
+        cam.srcObject=stream;
+        camPanel.classList.remove('hidden');   // show the box only when live
+      })
+      .catch(()=>{
+        camPanel.classList.add('hidden');      // no blank box if blocked
+        flash('Camera blocked — allow camera access to see yourself');
+      });
+  }
+  function stopCamera(){
+    if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+    cam.srcObject=null;
+    camPanel.classList.add('hidden');          // remove the box, don't leave it blank
+  }
+
+  /* ================= AUTO-SCROLL ================= */
+
+  function loop(ts){
+    if(!playing) return;
+    if(!lastTime) lastTime=ts;
+    const dt=(ts-lastTime)/1000;
+    lastTime=ts;
+
+    scrollAcc += speed*dt;
+    const whole=Math.floor(scrollAcc);
+    if(whole>=1){
+      scroller.scrollTop += whole;
+      scrollAcc -= whole;
+    }
+    const atEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight-2;
+    if(atEnd){ pause(); flash('Reached the end'); return; }
+    rafId=requestAnimationFrame(loop);
+  }
+
+  function play(){
+    if(playing) return;
+    const atTop = scroller.scrollTop < 4;
+    if(atTop){ runCountdown(beginScroll); }
+    else beginScroll();
+  }
+  function beginScroll(){
+    playing=true; lastTime=0; scrollAcc=0;
+    playIcon.innerHTML='<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>';
+    rafId=requestAnimationFrame(loop);
+    hideHint();
+  }
+  function pause(){
+    playing=false;
+    if(rafId) cancelAnimationFrame(rafId);
+    playIcon.innerHTML='<path d="M8 5v14l11-7z"/>';
+  }
+  function toggle(){ playing?pause():play(); }
+
+  function runCountdown(then){
+    let n=3;
+    countdown.classList.add('show');
+    cdNum.textContent=n;
+    const iv=setInterval(()=>{
+      n--;
+      if(n<=0){
+        clearInterval(iv);
+        countdown.classList.remove('show');
+        then();
+      }else{
+        cdNum.textContent=n;
+        cdNum.style.animation='none';
+        void cdNum.offsetWidth;
+        cdNum.style.animation='cd .9s ease-out';
+      }
+    },800);
+  }
+
+  /* ================= CONTROLS ================= */
+
+  function applySpeed(){ speedVal.textContent=speed; }
+  function applySize(){
+    script.style.setProperty('--pt-size',fontSize+'px');
+    sizeVal.textContent=fontSize;
+    updateMinimap();   // text size changes total scroll height
+  }
+  function changeSpeed(d){
+    speed=Math.min(260,Math.max(10,speed+d));
+    applySpeed();
+  }
+  function changeSize(d){
+    fontSize=Math.min(120,Math.max(24,fontSize+d));
+    applySize();
+  }
+
+  playBtn.addEventListener('click',toggle);
+  restartBtn.addEventListener('click',()=>{
+    pause();
+    scroller.scrollTo({top:0,behavior:'smooth'});
+  });
+  $('speedUp').addEventListener('click',()=>changeSpeed(10));
+  $('speedDown').addEventListener('click',()=>changeSpeed(-10));
+  $('sizeUp').addEventListener('click',()=>changeSize(4));
+  $('sizeDown').addEventListener('click',()=>changeSize(-4));
+
+  $('mirrorBtn').addEventListener('click',function(){
+    script.classList.toggle('mirror');
+    this.classList.toggle('active',script.classList.contains('mirror'));
+  });
+  $('camBtn').addEventListener('click',function(){
+    if(camStream){ stopCamera(); this.classList.add('active'); }
+    else { startCamera(); this.classList.remove('active'); }
+  });
+  $('fsBtn').addEventListener('click',toggleFullscreen);
+  $('minimapBtn').addEventListener('click',function(){
+    const showing = minimap.classList.toggle('hidden')===false;
+    stage.classList.toggle('has-minimap',showing);
+    this.classList.toggle('active',showing);
+    if(showing){
+      requestAnimationFrame(()=>{ layoutMinimap(); updateMinimap(); });
+    }
+  });
+  $('newBtn').addEventListener('click',()=>{
+    pause(); stopCamera();
+    prompter.classList.remove('active');
+    setup.style.display='flex';
+  });
+
+  function toggleFullscreen(){
+    if(!document.fullscreenElement){
+      document.documentElement.requestFullscreen().catch(()=>{});
+    }else{
+      document.exitFullscreen();
+    }
+  }
+
+  /* click on the text to jump that line to the reading guide */
+  scroller.addEventListener('click',e=>{
+    if(controls.contains(e.target)) return;
+    const guideY=window.innerHeight*0.35;
+    scroller.scrollTop += (e.clientY-guideY);
+  });
+
+  /* keep the minimap highlight box in sync as the script moves */
+  scroller.addEventListener('scroll',updateMinimap,{passive:true});
+  window.addEventListener('resize',()=>{
+    layoutMinimap(); updateMinimap();
+  });
+
+  /* after ANY control button is clicked, hand keyboard focus back to the
+     scroller — otherwise the clicked button keeps focus and steals Space /
+     arrow keys, which is why the keys felt unresponsive. */
+  controls.addEventListener('click',()=>{
+    setTimeout(()=>scroller.focus(),0);
+  });
+  /* clicking anywhere in the prompter (except the editable heading) refocuses */
+  prompter.addEventListener('mousedown',e=>{
+    if(e.target===headingText) return;
+    setTimeout(()=>{ if(document.activeElement!==headingText) scroller.focus(); },0);
+  });
+
+  /* ================= KEYBOARD ================= */
+
+  function handleKey(e){
+    if(!prompter.classList.contains('active')) return;
+    if(e.target===headingText || document.activeElement===headingText) return;
+    // accept either e.code (US layout) or e.key (other layouts) so the
+    // arrow keys are recognised regardless of keyboard / browser
+    const k = e.code || e.key;
+    switch(k){
+      case 'Space': case ' ':
+        e.preventDefault(); toggle(); break;
+      case 'ArrowUp':
+        e.preventDefault(); changeSpeed(10);  flash('Speed '+speed); break;
+      case 'ArrowDown':
+        e.preventDefault(); changeSpeed(-10); flash('Speed '+speed); break;
+      case 'ArrowRight':
+        e.preventDefault(); changeSize(4);    flash('Text size '+fontSize); break;
+      case 'ArrowLeft':
+        e.preventDefault(); changeSize(-4);   flash('Text size '+fontSize); break;
+      case 'KeyR': case 'r': case 'R':
+        e.preventDefault(); restartBtn.click(); break;
+      case 'KeyF': case 'f': case 'F':
+        e.preventDefault(); toggleFullscreen(); break;
+    }
+  }
+  /* listen on window in the capture phase so the keys are caught before
+     anything else (e.g. a focused button or native page scroll) can eat them */
+  window.addEventListener('keydown',handleKey,true);
+
+  /* ================= UI FEEDBACK ================= */
+
+  let toastTimer;
+  function flash(msg){
+    toast.textContent=msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer=setTimeout(()=>toast.classList.remove('show'),2600);
+  }
+
+  let hintTimer;
+  function showHintTemporarily(){
+    hint.classList.remove('hidden');
+    clearTimeout(hintTimer);
+    hintTimer=setTimeout(()=>hint.classList.add('hidden'),6000);
+  }
+  function hideHint(){ hint.classList.add('hidden'); }
+
+  /* auto-hide the control bar while reading */
+  let idleTimer;
+  function wake(){
+    controls.classList.remove('hidden');
+    clearTimeout(idleTimer);
+    idleTimer=setTimeout(()=>{
+      if(playing) controls.classList.add('hidden');
+    },3500);
+  }
+  document.addEventListener('mousemove',()=>{ if(prompter.classList.contains('active')) wake(); });
+  document.addEventListener('keydown',()=>{ if(prompter.classList.contains('active')) wake(); });
+
+})();
+</script>
+</body>
+</html>
